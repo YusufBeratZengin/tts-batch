@@ -22,6 +22,7 @@ this project's MIT license.
 
 ```sh
 tts-batch render examples/script.md -o out/ --engine espeak --voice en
+tts-batch render examples/script.tr.md -o out/ --engine espeak --voice tr
 tts-batch render script.md -o out/ --engine piper --voice models/en_US.onnx
 ```
 
@@ -109,12 +110,112 @@ render, although new cache entries can remain. Replacement of the entire output
 directory is not transactional against filesystem errors. Older numbered files
 from a longer render are left in place; use the manifest as the authoritative
 file list or choose a fresh output directory. Use a dedicated output directory
-and one writer at a time. The renderer holds audio in memory and is intended for
-short scripts.
+and one writer at a time. The renderer streams audio frames directly to
+`narration.wav`, keeping only the current segment in memory.
+
+### Manifest example and console output
+
+Running `tts-batch render` prints a single-line summary:
+
+```text
+Rendered 2 segments (2.000s) to out/
+```
+
+The resulting `out/manifest.json` provides sentence and word timelines:
+
+```json
+{
+  "schema_version": 1,
+  "engine": "stub",
+  "audio": "narration.wav",
+  "sample_rate": 16000,
+  "channels": 1,
+  "duration": 2.0,
+  "frames": 32000,
+  "gap_seconds": 0.2,
+  "normalization": "rms",
+  "target_dbfs": -20.0,
+  "word_timing": "estimated_character_weight",
+  "sentences": [
+    {
+      "text": "Hello, world.",
+      "file": "0001.wav",
+      "voice": "",
+      "speed": 1.0,
+      "start": 0.0,
+      "end": 0.6,
+      "start_frame": 0,
+      "end_frame": 9600,
+      "duration": 0.6,
+      "cache_hit": false,
+      "cache_key": "a362ec42341e2f77fcff42ef970afa0c3adfe7b02accbdb38310db9892b79e65",
+      "words": [
+        {
+          "text": "Hello",
+          "start": 0.0,
+          "end": 0.3
+        },
+        {
+          "text": "world",
+          "start": 0.3,
+          "end": 0.6
+        }
+      ]
+    },
+    {
+      "text": "This is a short narration.",
+      "file": "0002.wav",
+      "voice": "",
+      "speed": 1.0,
+      "start": 0.8,
+      "end": 2.0,
+      "start_frame": 12800,
+      "end_frame": 32000,
+      "duration": 1.2,
+      "cache_hit": false,
+      "cache_key": "10ced23c9fd24e29c4c8ff3463649d65f8881d21f74ba4db47c70632945f40c7",
+      "words": [
+        {
+          "text": "This",
+          "start": 0.8,
+          "end": 1.0285625
+        },
+        {
+          "text": "is",
+          "start": 1.0285625,
+          "end": 1.142875
+        },
+        {
+          "text": "a",
+          "start": 1.142875,
+          "end": 1.2
+        },
+        {
+          "text": "short",
+          "start": 1.2,
+          "end": 1.4856875
+        },
+        {
+          "text": "narration",
+          "start": 1.4856875,
+          "end": 2.0
+        }
+      ]
+    }
+  ]
+}
+```
 
 ## Options
 
 ```sh
+# Inspect planned speech segments without synthesizing audio
+tts-batch render examples/script.md --dry-run
+
+# List installed voices for espeak
+tts-batch --list-voices
+
+# Standard render with custom parameters
 tts-batch render script.md -o out/ --engine espeak --voice en \
   --speed 1.0 --gap 0.15 --normalize rms --target-db -20
 ```

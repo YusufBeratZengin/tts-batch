@@ -13,6 +13,7 @@ Depo kökünde:
 ```sh
 python -m pip install -e .
 tts-batch render examples/script.md -o out/ --engine espeak --voice en
+tts-batch render examples/script.tr.md -o out/ --engine espeak --voice tr
 tts-batch render script.md -o out/ --engine piper --voice models/tr_TR.onnx
 ```
 
@@ -95,11 +96,112 @@ Bu aşamalardaki hata önceki çıktıyı korur; yeni önbellek kayıtları kala
 Dosya değiştirme sırasında oluşan disk hatalarında tüm klasör için atomik işlem
 garantisi yoktur. Önceki uzun bir çalışmadan kalan numaralı dosyalar silinmez;
 güncel liste için manifesti kullanın veya yeni bir çıktı klasörü seçin. Aynı
-klasöre eşzamanlı yazmayın. Ses bellekte tutulur; araç kısa metinler içindir.
+klasöre eşzamanlı yazmayın. Ses doğrudan `narration.wav` dosyasına akış halinde
+yazılır; bellekte yalnızca geçerli parça tutulur.
 
-## Ses düzeyi, boşluk ve önbellek
+### Manifest örneği ve konsol çıktısı
+
+`tts-batch render` komutu tamamlandığında tek satırlık bir özet basar:
+
+```text
+Rendered 2 segments (2.000s) to out/
+```
+
+Oluşan `out/manifest.json` dosyası cümle ve kelime zaman çizelgesini içerir:
+
+```json
+{
+  "schema_version": 1,
+  "engine": "stub",
+  "audio": "narration.wav",
+  "sample_rate": 16000,
+  "channels": 1,
+  "duration": 2.0,
+  "frames": 32000,
+  "gap_seconds": 0.2,
+  "normalization": "rms",
+  "target_dbfs": -20.0,
+  "word_timing": "estimated_character_weight",
+  "sentences": [
+    {
+      "text": "Hello, world.",
+      "file": "0001.wav",
+      "voice": "",
+      "speed": 1.0,
+      "start": 0.0,
+      "end": 0.6,
+      "start_frame": 0,
+      "end_frame": 9600,
+      "duration": 0.6,
+      "cache_hit": false,
+      "cache_key": "a362ec42341e2f77fcff42ef970afa0c3adfe7b02accbdb38310db9892b79e65",
+      "words": [
+        {
+          "text": "Hello",
+          "start": 0.0,
+          "end": 0.3
+        },
+        {
+          "text": "world",
+          "start": 0.3,
+          "end": 0.6
+        }
+      ]
+    },
+    {
+      "text": "This is a short narration.",
+      "file": "0002.wav",
+      "voice": "",
+      "speed": 1.0,
+      "start": 0.8,
+      "end": 2.0,
+      "start_frame": 12800,
+      "end_frame": 32000,
+      "duration": 1.2,
+      "cache_hit": false,
+      "cache_key": "10ced23c9fd24e29c4c8ff3463649d65f8881d21f74ba4db47c70632945f40c7",
+      "words": [
+        {
+          "text": "This",
+          "start": 0.8,
+          "end": 1.0285625
+        },
+        {
+          "text": "is",
+          "start": 1.0285625,
+          "end": 1.142875
+        },
+        {
+          "text": "a",
+          "start": 1.142875,
+          "end": 1.2
+        },
+        {
+          "text": "short",
+          "start": 1.2,
+          "end": 1.4856875
+        },
+        {
+          "text": "narration",
+          "start": 1.4856875,
+          "end": 2.0
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Seçenekler ve komut satırı
 
 ```sh
+# Sentez yapmadan planlanan cümle parçalarını inceleme
+tts-batch render examples/script.tr.md --dry-run
+
+# Kurulu espeak seslerini listeleme
+tts-batch --list-voices
+
+# Özel ayarlarla seslendirme
 tts-batch render script.md -o out/ --engine espeak --voice tr \
   --gap 0.15 --normalize rms --target-db -20
 ```
