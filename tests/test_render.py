@@ -38,6 +38,40 @@ class RenderTests(unittest.TestCase):
             self.assertEqual(sentence["words"][-1]["end"], sentence["end"])
         self.assertEqual(read_wav((self.out / "narration.wav").read_bytes()).frames, 2440)
 
+    def test_two_hundred_segments_streaming_golden(self):
+        engine = FakeEngine()
+        script = "\n".join(f"Sentence number {i} here." for i in range(1, 201))
+        manifest = render(script, self.out, engine, gap=0.1, normalization="none")
+        self.assertEqual(len(manifest["sentences"]), 200)
+        self.assertEqual(manifest["schema_version"], 1)
+        self.assertEqual(manifest["sample_rate"], 8000)
+        self.assertEqual(manifest["channels"], 1)
+
+        # 800 frames per sentence; gap is 0.1s -> 800 frames
+        # Total frames = 200 * 800 + 199 * 800 = 399 * 800 = 319200 frames
+        expected_total_frames = 200 * 800 + 199 * 800
+        self.assertEqual(manifest["frames"], expected_total_frames)
+        self.assertEqual(manifest["duration"], expected_total_frames / 8000)
+
+        for i, s in enumerate(manifest["sentences"]):
+            expected_start = i * 1600
+            expected_end = expected_start + 800
+            self.assertEqual(s["file"], f"{i + 1:04d}.wav")
+            self.assertEqual((s["start_frame"], s["end_frame"]), (expected_start, expected_end))
+            self.assertEqual(s["start"], expected_start / 8000)
+            self.assertEqual(s["end"], expected_end / 8000)
+            self.assertEqual(s["duration"], 0.1)
+
+        # Confirm narration.wav on disk matches manifest
+        narration = read_wav((self.out / "narration.wav").read_bytes())
+        self.assertEqual(narration.frames, expected_total_frames)
+        self.assertEqual(narration.rate, 8000)
+        self.assertEqual(narration.channels, 1)
+
+        # Confirm first and last segment files exist
+        self.assertTrue((self.out / "0001.wav").is_file())
+        self.assertTrue((self.out / "0200.wav").is_file())
+
     def test_cache_reuse_and_normalization_independence(self):
         engine = FakeEngine()
         first = render("Repeat. Repeat.", self.out, engine, normalization="none")

@@ -54,19 +54,19 @@ def write_wav(pcm: PCM) -> bytes:
     return buffer.getvalue()
 
 
-def samples(data: bytes) -> array:
-    values = array("h")
+def samples(data: bytes) -> array[int]:
+    values: array[int] = array("h")
     values.frombytes(data)
     if sys.byteorder != "little":
         values.byteswap()
     return values
 
 
-def sample_bytes(values: array) -> bytes:
-    values = array("h", values)
+def sample_bytes(values: array[int]) -> bytes:
+    swapped: array[int] = array("h", values)
     if sys.byteorder != "little":
-        values.byteswap()
-    return values.tobytes()
+        swapped.byteswap()
+    return swapped.tobytes()
 
 
 def normalize(pcm: PCM, mode: str = "rms", target_db: float = -20.0) -> PCM:
