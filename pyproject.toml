@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tts-batch"
+version = "0.1.0"
+description = "Local script narration with sentence audio and caption timing"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Yusuf Berat Zengin"}]
+keywords = ["tts", "narration", "offline", "captions"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+kokoro = ["kokoro>=0.9.4,<0.10"]
+dev = ["ruff>=0.11,<0.18"]
+
+[project.scripts]
+tts-batch = "tts_batch.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/YusufBeratZengin/tts-batch"
+Issues = "https://github.com/YusufBeratZengin/tts-batch/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[[tool.mypy.overrides]]
+module = ["kokoro", "kokoro.*", "spacy", "spacy.*"]
+ignore_missing_imports = true
