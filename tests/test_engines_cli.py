@@ -160,3 +160,200 @@ class CliTests(unittest.TestCase):
                 patch("tts_batch.cli.get_engine", return_value=FakeEngine()),
             ):
                 self.assertEqual(main(["render", str(script), "-o", str(root / "out")]), 1)
+
+    def test_cli_dry_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for ext in [".md", ".txt"]:
+                script = root / f"test{ext}"
+                script.write_text("Sentence one. [speed 1.5]Sentence two.", encoding="utf-8")
+                with (
+                    patch("tts_batch.cli.get_engine") as mock_engine,
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                ):
+                    status = main(["render", str(script), "--dry-run"])
+                self.assertEqual(status, 0)
+                mock_engine.assert_not_called()
+                out = stdout.getvalue()
+                self.assertIn("Segment 0001", out)
+                self.assertIn("Sentence one.", out)
+                self.assertIn("Segment 0002", out)
+                self.assertIn("Sentence two.", out)
+                self.assertIn("speed: 1.50", out)
+
+    def test_cli_list_voices(self):
+        mock_output = (
+            "  Pty Language Age/Gender VoiceName          File          Other Languages\n"
+            " 5  en            M  default             default\n"
+        )
+        with (
+            patch("tts_batch.engines.shutil.which", return_value="espeak-ng"),
+            patch(
+                "tts_batch.engines.subprocess.run",
+                return_value=SimpleNamespace(stdout=mock_output),
+            ),
+            contextlib.redirect_stdout(io.StringIO()) as stdout,
+        ):
+            self.assertEqual(main(["--list-voices"]), 0)
+            self.assertIn("VoiceName", stdout.getvalue())
+
+        with (
+            patch("tts_batch.engines.shutil.which", return_value="espeak-ng"),
+            patch(
+                "tts_batch.engines.subprocess.run",
+                return_value=SimpleNamespace(stdout=mock_output),
+            ),
+            contextlib.redirect_stdout(io.StringIO()) as stdout,
+        ):
+            self.assertEqual(main(["render", "--list-voices"]), 0)
+            self.assertIn("VoiceName", stdout.getvalue())
+
+        with (
+            patch("tts_batch.engines.shutil.which", return_value=None),
+            contextlib.redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(main(["--list-voices"]), 1)
+            err = stderr.getvalue()
+            self.assertIn("tts-batch: Install espeak-ng or espeak and add it to PATH", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)
+
+    def test_error_handling_invalid_directives_and_scripts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            out_dir = root / "out"
+
+            # 1. Invalid directives
+            for directive in ["[pause abc]", "[speed 0]", "[speed -1]", "[pause -5ms]"]:
+                script = root / "invalid_directive.md"
+                script.write_text(f"{directive}Hello world.", encoding="utf-8")
+                with (
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    patch("tts_batch.cli.get_engine", return_value=FakeEngine()),
+                ):
+                    code = main(["render", str(script), "-o", str(out_dir)])
+                self.assertEqual(code, 1, f"Failed for {directive}")
+                err = stderr.getvalue()
+                self.assertTrue(err.startswith("tts-batch: "), err)
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertNotIn("Traceback", err)
+
+            # 2. Empty script
+            empty_script = root / "empty.md"
+            empty_script.write_text("", encoding="utf-8")
+            with (
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+                patch("tts_batch.cli.get_engine", return_value=FakeEngine()),
+            ):
+                code = main(["render", str(empty_script), "-o", str(out_dir)])
+            self.assertEqual(code, 1)
+            err = stderr.getvalue()
+            self.assertIn("tts-batch: Script contains no speech", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)
+
+            # 3. Script with only comments
+            comment_script = root / "comments.md"
+            comment_script.write_text("# Line 1\n# Line 2\n", encoding="utf-8")
+            with (
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+                patch("tts_batch.cli.get_engine", return_value=FakeEngine()),
+            ):
+                code = main(["render", str(comment_script), "-o", str(out_dir)])
+            self.assertEqual(code, 1)
+            err = stderr.getvalue()
+            self.assertIn("tts-batch: Script contains no speech", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)
+
+            # 4. Output directory is a file
+            dummy_file = root / "file_not_dir.txt"
+            dummy_file.write_text("I am a file", encoding="utf-8")
+            valid_script = root / "valid.md"
+            valid_script.write_text("Hello world.", encoding="utf-8")
+            with (
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+                patch("tts_batch.cli.get_engine", return_value=FakeEngine()),
+            ):
+                code = main(["render", str(valid_script), "-o", str(dummy_file)])
+            self.assertEqual(code, 1)
+            err = stderr.getvalue()
+            self.assertTrue(err.startswith("tts-batch: "), err)
+            self.assertIn("Output directory cannot be a file", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)
+
+            # 5. Engine returns non-WAV bytes
+            class NonWavEngine:
+                name = "non_wav"
+
+                def synth(self, text, voice, speed):
+                    return b"not a valid wav file header"
+
+            with (
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+                patch("tts_batch.cli.get_engine", return_value=NonWavEngine()),
+            ):
+                code = main(["render", str(valid_script), "-o", str(out_dir), "--no-cache"])
+            self.assertEqual(code, 1)
+            err = stderr.getvalue()
+            self.assertTrue(err.startswith("tts-batch: "), err)
+            self.assertIn("Invalid WAV audio", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)
+
+            # 6. Engine returns 8-bit WAV bytes
+            import wave
+
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(1)
+                w.setframerate(8000)
+                w.writeframes(b"\x80" * 100)
+            eight_bit_bytes = buf.getvalue()
+
+            class EightBitEngine:
+                name = "eight_bit"
+
+                def synth(self, text, voice, speed):
+                    return eight_bit_bytes
+
+            with (
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+                patch("tts_batch.cli.get_engine", return_value=EightBitEngine()),
+            ):
+                code = main(["render", str(valid_script), "-o", str(out_dir), "--no-cache"])
+            self.assertEqual(code, 1)
+            err = stderr.getvalue()
+            self.assertTrue(err.startswith("tts-batch: "), err)
+            self.assertIn("Only uncompressed 16-bit PCM WAV is supported", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)
+
+            # 7. Engine returns mixed sample rates
+            two_sentence_script = root / "two_sentences.md"
+            two_sentence_script.write_text("First sentence. Second sentence.", encoding="utf-8")
+
+            class MixedRateEngine:
+                name = "mixed_rate"
+
+                def __init__(self):
+                    self.call_count = 0
+
+                def synth(self, text, voice, speed):
+                    self.call_count += 1
+                    rate = 8000 if self.call_count == 1 else 16000
+                    return write_wav(sine(rate=rate))
+
+            with (
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+                patch("tts_batch.cli.get_engine", return_value=MixedRateEngine()),
+            ):
+                code = main(["render", str(two_sentence_script), "-o", str(out_dir), "--no-cache"])
+            self.assertEqual(code, 1)
+            err = stderr.getvalue()
+            self.assertTrue(err.startswith("tts-batch: "), err)
+            self.assertIn("All segments must have the same sample rate and channel count", err)
+            self.assertEqual(len(err.strip().splitlines()), 1)
+            self.assertNotIn("Traceback", err)

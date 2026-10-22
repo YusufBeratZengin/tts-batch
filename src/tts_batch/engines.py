@@ -46,6 +46,19 @@ def _run(command: list[str], text: str) -> bytes:
         raise EngineError(f"{command[0]} failed with exit code {exc.returncode}") from exc
 
 
+def list_espeak_voices() -> str:
+    executable = shutil.which("espeak-ng") or shutil.which("espeak")
+    if not executable:
+        raise EngineError("Install espeak-ng or espeak and add it to PATH")
+    try:
+        result = subprocess.run(
+            [executable, "--voices"], capture_output=True, text=True, check=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as exc:
+        raise EngineError(f"{executable} failed with exit code {exc.returncode}") from exc
+
+
 class PiperEngine:
     name = "piper"
 
