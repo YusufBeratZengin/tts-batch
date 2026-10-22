@@ -29,6 +29,33 @@ class SplitterTests(unittest.TestCase):
         )
         self.assertEqual(split_sentences("Привет! Как дела?"), ["Привет!", "Как дела?"])
 
+    def test_turkish_abbreviations_decimals_and_ordinals(self):
+        text = "Dr. Kaya 22. Ekim 2026 tarihinde saat 3,5 saat süren bir sunum yaptı. İkinci cümle."
+        self.assertEqual(
+            split_sentences(text),
+            [
+                "Dr. Kaya 22. Ekim 2026 tarihinde saat 3,5 saat süren bir sunum yaptı.",
+                "İkinci cümle.",
+            ],
+        )
+        self.assertEqual(
+            split_sentences(
+                "Bu çalışma 21. yy. başındaki gelişmeleri ve 3. sıradaki yenilikleri ele alıyor."
+            ),
+            [
+                "Bu çalışma 21. yy. başındaki gelişmeleri ve 3. sıradaki yenilikleri ele alıyor.",
+            ],
+        )
+        self.assertEqual(
+            split_sentences(
+                "Örn. elma, armut vb. meyveler sepetteydi. Detay için bkz. rapor vs. belgeler."
+            ),
+            [
+                "Örn. elma, armut vb. meyveler sepetteydi.",
+                "Detay için bkz. rapor vs. belgeler.",
+            ],
+        )
+
     def test_numbers_domains_and_whitespace(self):
         self.assertEqual(
             split_sentences("1. First item. See example.org.\nNext line"),

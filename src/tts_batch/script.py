@@ -5,7 +5,33 @@ import re
 from dataclasses import dataclass
 
 _TITLES = {"mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "sn", "doç", "av"}
-_ABBREVIATIONS = {"e.g", "i.e", "vs", "etc", "approx", "no", "fig", "örn", "vb", "bkz"}
+_ABBREVIATIONS = {"e.g", "i.e", "vs", "etc", "approx", "no", "fig", "örn", "vb", "bkz", "yy"}
+_MONTHS = {
+    "ocak",
+    "şubat",
+    "mart",
+    "nisan",
+    "mayıs",
+    "haziran",
+    "temmuz",
+    "ağustos",
+    "eylül",
+    "ekim",
+    "kasım",
+    "aralık",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+}
 _CLOSERS = "\"'”’»)]}"
 
 
@@ -32,10 +58,16 @@ def split_sentences(text: str) -> list[str]:
             token = re.search(r"([\w.]+)$", before, re.UNICODE)
             word = token.group(1) if token else ""
             next_word = after.lstrip()
+            next_token = re.match(r"[\w]+", next_word, re.UNICODE)
+            next_first_word = next_token.group(0) if next_token else ""
             if next_word and (
                 word.casefold() in _TITLES | _ABBREVIATIONS
                 or (len(word) == 1 and word.isalpha() and word.isupper())
                 or re.fullmatch(r"(?:[A-Za-z]\.)+[A-Za-z]", word)
+                or (
+                    word.isdigit()
+                    and (next_word[0].islower() or next_first_word.casefold() in _MONTHS)
+                )
             ):
                 i += 1
                 continue
