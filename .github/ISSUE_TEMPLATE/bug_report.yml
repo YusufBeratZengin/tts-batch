@@ -1,0 +1,65 @@
+name: Bug Report
+description: File a bug report to help improve tts-batch
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please verify you are using the latest version of `tts-batch`.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what went wrong...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Details about your environment.
+      value: |
+        - **tts-batch version**: (e.g. `0.1.0` or `tts-batch --version`)
+        - **Operating System**: (e.g. Linux / macOS / Windows 11)
+        - **Engine**: (e.g. espeak / piper / kokoro) and version
+        - **Python version**: (e.g. Python 3.10)
+    validations:
+      required: true
+  - type: textarea
+    id: script
+    attributes:
+      label: Minimal script to reproduce
+      description: Provide a minimal `.md` or `.txt` script that reproduces the bug.
+      render: markdown
+      placeholder: |
+        # Minimal script
+        Hello, world.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What exact command did you execute?
+      render: shell
+      placeholder: |
+        tts-batch render script.md -o out/ --engine espeak
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / Error output
+      description: Paste console output, stack traces, or error messages here.
+      render: shell
+    validations:
+      required: true
