@@ -7,7 +7,8 @@ offline operation. Do not add automatic engine, model or voice downloads.
 python -m pip install -e ".[dev]"
 python -m ruff check .
 python -m ruff format --check .
-python -m unittest discover -v
+python -m mypy
+python -m pytest --cov=tts_batch
 ```
 
 Tests also run without installing the package or development dependencies.

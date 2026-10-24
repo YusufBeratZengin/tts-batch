@@ -1,113 +1,184 @@
 # tts-batch
 
-UTF-8 metinlerden yerel seslendirme, cümle başına WAV dosyası ve altyazı zaman
-çizelgesi üretir. Python 3.10 veya üzeri gerekir. Çekirdek paket yalnızca Python
-standart kütüphanesini kullanır.
+UTF-8 metin betiklerini yerel seslendirmeye, numaralandırılmış cümle WAV dosyalarına ve JSON altyazı zaman çizelgesine dönüştürün.
 
-[English](README.md) · [Katkı rehberi](CONTRIBUTING.md) · [Değişiklikler](CHANGELOG.md)
+[![CI](https://github.com/YusufBeratZengin/tts-batch/actions/workflows/ci.yml/badge.svg)](https://github.com/YusufBeratZengin/tts-batch/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/tts-batch.svg?color=blue)](https://pypi.org/project/tts-batch/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Kurulum ve kullanım
+[English](README.md) · [Katkı Rehberi](CONTRIBUTING.md) · [Değişiklikler](CHANGELOG.md)
 
-Depo kökünde:
+<p align="center">
+  <img src="docs/demo.svg" alt="tts-batch terminal demosu" width="820">
+</p>
+
+## Neden tts-batch?
+
+- **Tamamen çevrimdışı ve yerel**: Piper (ONNX), espeak-ng veya Kokoro ile tamamen yerel iş istasyonunuzda çalışır. Sıfır API anahtarı, sırsız mimari, aylık abonelik ücreti yok ve hiçbir ses verisi dışarı çıkmaz.
+- **Video kurgu ve altyazı uyumlu**: DaVinci Resolve, Premiere veya altyazı araçlarına doğrudan sürüklenebilen numaralı cümle WAV dosyaları (`0001.wav`, `0002.wav`, ...) ile birlikte birleşik `narration.wav` ve tam kare hassasiyetinde JSON zaman çizelgesi üretir.
+- **Saf standart kütüphane çekirdeği**: Çekirdek paket hiçbir dış çalışma zamanı bağımlılığı gerektirmez. Doğrudan diske akış halinde $O(1)$ bellek birleştirmesi, saf Python RMS/tepe normalizasyonu ve deterministik SHA-256 önbellekleme sunar.
+
+## Hızlı başlangıç
+
+### 1. Kurulum
+
+`tts-batch` paketini pip ile kurun:
 
 ```sh
+# PyPI üzerinden
+python -m pip install tts-batch
+
+# Veya yerel repodan
 python -m pip install -e .
-tts-batch render examples/script.md -o out/ --engine espeak --voice en
-tts-batch render examples/script.tr.md -o out/ --engine espeak --voice tr
-tts-batch render script.md -o out/ --engine piper --voice models/tr_TR.onnx
 ```
 
-`python -m tts_batch` komutu da kullanılabilir. Varsayılan motor `espeak`, PATH
-üzerindeki `espeak-ng` veya `espeak` programını çalıştırır. Piper için PATH
-üzerinde `piper`, yerel bir `.onnx` model dosyası ve yanında `.onnx.json`
-yapılandırması bulunmalıdır. Motor programlarını ve modelleri önceden kendiniz
-kurmalısınız; bu paket model indirmez. Motorların ve ses modellerinin lisansları
-projenin MIT lisansından ayrıdır.
+### 2. Metni inceleyin (Kuru çalıştırma)
 
-Bulut hesabı veya ücretli API gerekmez. Seçilen motor bulunamazsa komut hata
-verir. Yedek motoru kullanmak için `--engine espeak` seçin.
+Ses motorunu çalıştırmadan cümle bölümlerini ve hızları test edin:
 
-## Metin biçimi
+```sh
+tts-batch render examples/script.md --dry-run
+```
 
-`.txt` ve `.md` dosyaları desteklenir. CLI, UTF-8 BOM işaretini de kabul eder.
-
+Çıktı:
 ```text
-# Bu satır okunmaz
+Segment 0001 [voice: (default), speed: 1.00]: Hello, world.
+Segment 0002 [voice: (default), speed: 1.00]: This is a short narration.
+Segment 0003 [voice: (default), speed: 1.10]: Use the sentence files in your video editor.
+Segment 0004 [voice: (default), speed: 1.00]: Keep the timing manifest for captions.
+```
+
+### 3. Seslendirmeyi üretin
+
+Sistemdeki yerel `espeak` motorunu kullanarak ses üretin:
+
+```sh
+tts-batch render examples/script.md -o out/ --engine espeak --voice en
+```
+
+Türkçe kısaltmaları ("yy.", "vb.", "örn.") ve sıra sayılarını ("22. Ekim 2026") içeren Türkçe metni seslendirin:
+
+```sh
+tts-batch render examples/script.tr.md -o out/ --engine espeak --voice tr
+```
+
+`python -m tts_batch` komutu doğrudan `tts-batch` ile eşdeğerdir.
+
+## Kullanım örnekleri
+
+### Metin biçimi ve yönergeler
+
+Metinler `.txt` veya `.md` biçiminde ve UTF-8 (veya UTF-8 BOM) olarak kodlanmalıdır:
+
+```markdown
+# # ile başlayan satırlar yorum olarak yok sayılır
 Merhaba dünya. Bu *kısa* bir seslendirme.
 [pause 500ms]
 [speed 1.1]
 Bu bölüm biraz daha hızlı okunur.
 [voice models/diger.onnx]
-Buradan sonra başka bir ses kullanılır.
+Buradan sonra başka bir ses modeli kullanılır.
 ```
 
-| İşaret | Davranış |
+| Yönerge | Davranış |
 | --- | --- |
-| `[pause 500ms]` | 500 milisaniye sessizlik ekler; ondalıklı değer kabul edilir |
-| `[speed 1.1]` | Sonraki metnin hız çarpanını değiştirir; varsayılan 1.0 |
-| `[voice x]` | Sonraki metnin sesini değiştirir; dosya yolunda boşluk olabilir |
-| `*vurgu*` | Yıldızlar kaldırılır; motorlara vurgu uygulanmaz |
-| İlk boşluk dışı karakteri `#` olan satır | Satır bütünüyle atlanır |
+| `[pause 500ms]` | Sessizlik ekler (milisaniye); `250.5ms` gibi ondalıklı değerler geçerlidir |
+| `[speed 1.1]` | Sonraki cümlelerin okuma hız çarpanını belirler; varsayılan `1.0` |
+| `[voice yol/veya/id]` | Sonraki metin için ses modelini veya kimliğini belirler; boşluk içerebilir |
+| `*vurgu*` | Yıldızlar otomatik ayıklanır; ses motorları tarafından göz ardı edilir |
+| `# Yorum` | İlk boşluk dışı karakteri `#` olan satır bütünüyle yok sayılır |
 
-Yönergeler büyük/küçük harfe duyarlıdır. Her yönerge, kendisinden önce biriken
-metni ayrı ses parçasına dönüştürür. Cümlenin ortasında kullanılırsa cümle
-bölünür. Hız ve ses ayarı tekrar değiştirilene kadar geçerlidir. Köşeli
-parantezler yönergelere ayrılmıştır; bilinmeyen, eksik veya hatalı yönergeler
-reddedilir. Diğer Markdown özellikleri işlenmez. Satır sonları boşluğa dönüşür;
-cümleler noktalama işaretleriyle ayrılır.
+Yönergeler anında etkinleşir ve önceki metni bağımsız bir ses parçasına dönüştürür. Hız ve ses ayarları tekrar değiştirilene kadar geçerliliğini korur.
 
-Cümle ayırıcı yaygın Türkçe/İngilizce kısaltmaları, baş harfleri, ondalık
-sayıları, Latin noktalamasını ve Çince/Japonca tam genişlikli işaretleri tanır.
-Boşlukla ayrılan Kiril metinlerinde de çalışır. Kurallara dayalıdır; belirsiz
-kısaltmalarda, sıra sayılarında veya farklı dil kurallarında elle sınır koymak
-gerekebilir. Bunun için `[pause 0ms]` kullanılabilir.
+### Motor seçenekleri
 
-## Çıktı ve zamanlar
+Tercih ettiğiniz ses motorunu ayrı olarak kurun:
 
-`out/` içinde `0001.wav`, `0002.wav` gibi ses parçaları, birleşik
-`narration.wav`, `manifest.json` ve varsayılan `.cache/` önbelleği oluşur.
-Numaralı dosyalar yalnızca konuşmayı içerir. Birleşik dosya, baştaki ve sondaki
-duraklamaları, metin içindeki duraklamaları ve parçalar arasındaki boşluğu da
-içerir. `[pause ...]` ile `--gap` süreleri toplanır. İlk parçadan önce ve son
-parçadan sonra otomatik boşluk eklenmez.
+1. **Piper (Yapay Zeka Destekli ONNX)**: Yüksek kaliteli yerel yapay zeka sesi. PATH üzerinde `piper`, yerel bir `.onnx` modeli ve modelin yanındaki `.onnx.json` dosyasını gerektirir.
+   ```sh
+   tts-batch render examples/script.md -o out/ --engine piper --voice models/en_US.onnx
+   ```
+2. **espeak-ng (Hafif ve hızlı)**: Çok hızlı yerel sentez. PATH üzerinde `espeak-ng` veya `espeak` programını gerektirir.
+   ```sh
+   # Yüklü dilleri listele
+   tts-batch --list-voices
 
-Manifestte şema sürümü, motor, birleşik dosyanın adı, örnekleme hızı, kanal
-sayısı, toplam süre ve kare sayısı bulunur. `sentences` listesindeki her kayıtta
-metin, göreli dosya adı, ses/hız ayarı, başlangıç/bitiş saniyeleri (`start`,
-`end`), süre (`duration`), başlangıç/bitiş kareleri, önbellek bilgileri ve
-`words` listesi yer alır. Zamanlar `narration.wav` dosyasının başlangıcına
-göredir; bitiş anı aralığa dahil değildir. Tek bir cümle dosyasında çalışırken
-kelime zamanlarından cümlenin `start` değerini çıkarın.
+   # Belirli bir dil koduyla çalıştır
+   tts-batch render examples/script.md -o out/ --engine espeak --voice en
+   ```
+3. **Kokoro (İsteğe bağlı ek)**:
+   ```sh
+   python -m pip install -e ".[kokoro]"
+   tts-batch render examples/script.md -o out/ --engine kokoro \
+     --kokoro-model models/kokoro-v1_0.pth \
+     --kokoro-config models/config.json --voice voices/af_heart.pt --lang a
+   ```
+   Yerel `.pth` ağırlık dosyası, yapılandırma JSON'ı ve `.pt` ses tensörü gerektirir. Çevrimdışı güvenlik için adaptör `HF_HUB_OFFLINE=1` ve `TRANSFORMERS_OFFLINE=1` tanımlar. Desteklenen diller: `a` (ABD İngilizcesi), `b` (BK İngilizcesi), `e` (İspanyolca), `f` (Fransızca), `h` (Hintçe), `i` (İtalyanca), `p` (Portekizce), `z` (Mandarin).
 
-Cümle süreleri gerçek WAV karelerinden hesaplanır. Sessizlikler en yakın örnek
-karesine yuvarlanır; toplam süre tam sayı karelerle tutulur. **Kelime zamanları
-tahminidir; konuşmaya kesin hizalama yapılmaz.** Manifest bunu
-`word_timing: "estimated_character_weight"` olarak belirtir. Süre, kelimelere
-karakter sayıları oranında paylaştırılır; Çince/Japonca karakterler ayrı altyazı
-birimleri sayılır. Motorun ürettiği ses içindeki sessizlikler de bu tahmine
-dahildir. Yalnızca noktalama içeren parçalarda kelime listesi boştur.
+### Python API
 
-Tüm sesler sıkıştırılmamış 16 bit PCM WAV olmalı; örnekleme hızları ve kanal
-sayıları eşleşmelidir. Yeniden örnekleme yapılmaz. Farklı biçimlerde ses üreten
-modeller arasında geçiş hata verir.
+Betikleri doğrudan Python kodunuzdan da çalıştırabilirsiniz:
 
-Ses üretimi ve biçim kontrolleri tamamlandıktan sonra çıktı dosyaları değiştirilir.
-Bu aşamalardaki hata önceki çıktıyı korur; yeni önbellek kayıtları kalabilir.
-Dosya değiştirme sırasında oluşan disk hatalarında tüm klasör için atomik işlem
-garantisi yoktur. Önceki uzun bir çalışmadan kalan numaralı dosyalar silinmez;
-güncel liste için manifesti kullanın veya yeni bir çıktı klasörü seçin. Aynı
-klasöre eşzamanlı yazmayın. Ses doğrudan `narration.wav` dosyasına akış halinde
-yazılır; bellekte yalnızca geçerli parça tutulur.
+```python
+from pathlib import Path
+from tts_batch import render
+from tts_batch.engines import EspeakEngine
 
-### Manifest örneği ve konsol çıktısı
+manifest = render(
+    "Merhaba dünya. Bu Python seslendirmesidir.",
+    Path("out"),
+    EspeakEngine(),
+    voice="tr",
+    gap=0.2,
+    normalization="rms",
+    target_db=-20.0,
+)
+print(f"Seslendirilen cümle sayısı: {len(manifest['sentences'])}, dosya: {manifest['audio']}")
+```
 
-`tts-batch render` komutu tamamlandığında tek satırlık bir özet basar:
+## Yapılandırma
+
+### Komut satırı seçenekleri
+
+```sh
+tts-batch render <script.md> -o <cikti_klasoru> [secenekler]
+```
+
+| Seçenek | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `-o, --output` | *(zorunlu)* | Çıktı dosyalarının ve manifestin yazılacağı klasör |
+| `--engine` | `espeak` | Ses motoru adaptörü (`piper`, `espeak`, `kokoro`) |
+| `--voice` | `""` | Ses modeli dosya yolu (Piper/Kokoro) veya dil kodu (espeak) |
+| `--speed` | `1.0` | Genel konuşma hızı çarpanı (> 0) |
+| `--gap` | `0.2` | Parçalar arasına eklenecek sessizlik boşluğu (saniye) |
+| `--normalize` | `rms` | Ses normalizasyonu yöntemi: `rms`, `peak` veya `none` |
+| `--target-db` | `-20.0` | Hedef dBFS seviyesi (-120 ile 0 dBFS arası) |
+| `--dry-run` | `false` | Ses sentezleme yapmadan cümle bölümlerini ekrana yazdırır |
+| `--list-voices` | `false` | Sistemde yüklü `espeak-ng` seslerini listeler |
+| `--cache-dir` | `OUTPUT/.cache` | Deterministik WAV önbellek klasörü |
+| `--no-cache` | `false` | Önbelleği devre dışı bırakır ve yeniden sentezler |
+
+### Çıktı yapısı ve manifest şeması
+
+Her çalıştırma sonucunda çıktı klasöründe şu dosyalar oluşur:
+
+```text
+out/
+  0001.wav          # İlk cümlenin ses dosyası
+  0002.wav          # İkinci cümlenin ses dosyası
+  narration.wav     # Boşluklar ve duraklamalar dahil birleşik ses
+  manifest.json     # Zamanlama üstverisi ve altyazı hizalaması
+  .cache/           # SHA-256 sentez önbelleği
+```
+
+`tts-batch render` komutu tamamlandığında kısa bir durum özeti yazdırır:
 
 ```text
 Rendered 2 segments (2.000s) to out/
 ```
 
-Oluşan `out/manifest.json` dosyası cümle ve kelime zaman çizelgesini içerir:
+Oluşan `out/manifest.json` dosyası cümle ve tahmini kelime zamanlamalarını sağlar:
 
 ```json
 {
@@ -192,82 +263,34 @@ Oluşan `out/manifest.json` dosyası cümle ve kelime zaman çizelgesini içerir
 }
 ```
 
-## Seçenekler ve komut satırı
+## SSS ve Sınırlamalar
+
+- **Ses biçimi gereksinimleri**: Tüm motor çıktıları sıkıştırılmamış 16 bit PCM WAV olmalıdır. Tek bir çalıştırmadaki tüm parçaların örnekleme hızı ve kanal sayısı aynı olmalıdır (otomatik yeniden örnekleme yapılmaz).
+- **Kelime zamanlaması tahmini**: Cümle sınırları WAV ses karelerinden tam kesinlikle hesaplanır. Kelime zamanları ise karakter ağırlıklı tahmindir (`word_timing: "estimated_character_weight"`); zorunlu akustik hizalama (forced alignment) değildir.
+- **Motor programları ve modeller**: Bu paket motor ikililerini (`espeak`, `piper`) veya ses modellerini indirmez ve dağıtmaz. Motor lisansları projenin MIT lisansından bağımsızdır.
+- **Eşzamanlılık ve dizin güvenliği**: Çıktı dosyaları hazırlanıp ardından `narration.wav` ve `manifest.json` güncellenir. Ancak dosya sistemi düzeyindeki klasör değişimi atomik değildir; aynı çıktı klasörüne eşzamanlı çalıştırma yapmayın.
+
+## Katkıda Bulunma
+
+Katkılarınızı memnuniyetle kabul ediyoruz!
 
 ```sh
-# Sentez yapmadan planlanan cümle parçalarını inceleme
-tts-batch render examples/script.tr.md --dry-run
-
-# Kurulu espeak seslerini listeleme
-tts-batch --list-voices
-
-# Özel ayarlarla seslendirme
-tts-batch render script.md -o out/ --engine espeak --voice tr \
-  --gap 0.15 --normalize rms --target-db -20
-```
-
-`--gap` saniye cinsindedir; varsayılanı 0.2'dir. `--normalize rms` her parçayı
-varsayılan -20 dBFS RMS düzeyine yaklaştırır. `peak` tepe düzeyini hedefler;
-`none` düzeyi korur. Hedef -120 ile 0 dBFS arasında olmalıdır. Kırpılmayı önleyen
-kazanç sınırı nedeniyle RMS hedefine her zaman ulaşılamaz. Sessizlik değiştirilmez.
-Bu işlem LUFS ölçümüne dayanan bir mastering işlemi değildir.
-
-Ham motor çıktısı; motor kimliği, ses, hız ve metnin SHA-256 özetiyle önbelleğe
-alınır. Yerel model/ses dosyalarının yolu, boyutu ve değişiklik zamanı da anahtara
-girer. Kokoro'da dil, model ve yapılandırma bilgileri de kullanılır. Boşluk veya
-normalizasyon değişirse ses yeniden üretilmez. `--cache-dir yol` ortak önbellek
-seçer; `--no-cache` önbelleği kapatır. Bozuk kayıtlar yeniden oluşturulur. Modeli
-aynı boyut ve zaman damgasıyla değiştirirseniz ya da motoru güncellerseniz
-önbelleği elle temizleyin. Metinler, manifestler ve sesler yerel diskte kalır;
-hassas içerik varsa bu dosyaları koruyun.
-
-## İsteğe bağlı Kokoro
-
-Bağımlılıkların desteklediği bir Python sürümüyle:
-
-```sh
-python -m pip install -e ".[kokoro]"
-tts-batch render script.md -o out/ --engine kokoro \
-  --kokoro-model models/kokoro-v1_0.pth \
-  --kokoro-config models/config.json --voice voices/af_heart.pt --lang a
-```
-
-Model, yapılandırma ve `.pt` ses dosyası yerelde bulunmalıdır. `af_heart` gibi
-yalnızca ses adı verilemez. Dil ve yazıdan foneme dönüşüm kaynaklarını önceden
-hazırlayın; İngilizce için kurulu `en_core_web_sm` spaCy paketi gerekir. Adaptör,
-Kokoro'yu içe aktarmadan önce `HF_HUB_OFFLINE=1` ve `TRANSFORMERS_OFFLINE=1`
-ayarlarını yapar; bu ayarlar süreç boyunca kalır. Eksik kaynaklarda çevrim içi
-modele geçmek yerine hata verir. Kesin ağ yalıtımı gerekiyorsa ağ erişimi kapalı
-bir ortamda çalıştırın.
-
-Desteklenen dil kodları: `a` ABD İngilizcesi, `b` Britanya İngilizcesi, `e`
-İspanyolca, `f` Fransızca, `h` Hintçe, `i` İtalyanca, `p` Brezilya Portekizcesi ve
-`z` Mandarin (v1.0 yapılandırması). İngilizce dışındaki dil bağımlılıkları ayrıca
-hazırlanmalıdır. Japonca bağımlılığı kendiliğinden sözlük indirebildiğinden bu
-adaptörde Japonca kapalıdır. Kokoro 0.9 API'si kullanılır; çıktı 24 kHz, tek
-kanallıdır. Model lisanslarını ayrıca inceleyin.
-
-## Geliştirme
-
-Yeni motor, `name: str` ve `synth(text, voice, speed) -> bytes` arayüzünü
-uygulayıp tam bir WAV dosyası döndürmelidir. İsteğe bağlı `cache_identity`
-metni motor yapılandırmasını önbellek anahtarına ekleyebilir. Özel motorlar
-Python'daki `tts_batch.render` fonksiyonuna nesne olarak verilebilir.
-
-Depo kökünde:
-
-```sh
-python -m unittest discover -v
+# Geliştirme ortamını hazırlayın
 python -m pip install -e ".[dev]"
+
+# Kod stili ve biçimlendirmeyi kontrol edin
 python -m ruff check .
 python -m ruff format --check .
+
+# Katı tip denetimini çalıştırın
+python -m mypy
+
+# Test paketini kapsam raporu ile çalıştırın
+python -m pytest --cov=tts_batch
 ```
 
-Testler motorları taklit eder ve sinüs dalgalarını kendisi üretir; model, ağ veya
-motor kurulumu gerekmez. Geçici dosyalar Git'in yok saydığı `is/test-tmp/` altında
-tutulur. CI, Ubuntu ve Windows üzerinde Python 3.10 ve 3.14 ile lint ve test
-çalıştırır. İsteğe bağlı Kokoro bağımlılıkları ve gerçek model kalitesi CI
-kapsamında değildir.
+Ayrıntılı bilgi için [CONTRIBUTING.md](CONTRIBUTING.md) ve güvenlik ilkeleri için [SECURITY.md](SECURITY.md) dosyalarına bakın.
 
-Proje: [YusufBeratZengin/tts-batch](https://github.com/YusufBeratZengin/tts-batch).
-Lisans: [MIT](LICENSE).
+## Lisans
+
+Bu proje [MIT Lisansı](LICENSE) kapsamında sunulmaktadır.
