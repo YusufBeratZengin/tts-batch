@@ -23,3 +23,15 @@ class ExampleManifestTests(unittest.TestCase):
         for key in ['"schema_version": 1', '"audio": "narration.wav"', '"0001.wav"', '"0002.wav"']:
             self.assertIn(key, readme_en)
             self.assertIn(key, readme_tr)
+
+    def test_demo_svg_exists_and_embedded_in_readmes(self) -> None:
+        demo_svg = ROOT / "docs" / "demo.svg"
+        self.assertTrue(demo_svg.is_file(), "docs/demo.svg does not exist")
+        content = demo_svg.read_text(encoding="utf-8")
+        self.assertTrue(content.startswith("<svg"), "demo.svg must be an SVG file")
+        self.assertIn("</svg>", content)
+
+        readme_en = (ROOT / "README.md").read_text(encoding="utf-8")
+        readme_tr = (ROOT / "README.tr.md").read_text(encoding="utf-8")
+        self.assertIn("docs/demo.svg", readme_en)
+        self.assertIn("docs/demo.svg", readme_tr)
