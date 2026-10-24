@@ -1,5 +1,7 @@
 """16-bit PCM WAV processing using only the standard library."""
 
+from __future__ import annotations
+
 import io
 import math
 import sys
